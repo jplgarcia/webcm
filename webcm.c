@@ -53,6 +53,11 @@ uint64_t uncompress_memory(cm_machine *machine, uint64_t paddr, uint8_t *data, u
     return uncompressed_size;
 }
 
+EMSCRIPTEN_KEEPALIVE
+void my_wasm_function() {
+    printf("Hello from WebAssembly!\n");
+}
+
 int main() {
     printf("Allocating...\n");
 
@@ -109,15 +114,33 @@ int main() {
         emscripten_sleep(0);
     } while(break_reason == CM_BREAK_REASON_REACHED_TARGET_MCYCLE);
 
+    uint8_t cmd;
+    uint16_t domain;
     // Print reason for run interruption
     switch (break_reason) {
         case CM_BREAK_REASON_HALTED:
         printf("Halted\n");
         break;
         case CM_BREAK_REASON_YIELDED_MANUALLY:
+        uint8_t request_data[1024];
+        uint64_t length = sizeof(request_data);
+        if (cm_receive_cmio_request(machine, &cmd, &domain, request_data, &length)) {
+            printf("failed to receive CMIO request: %s\n", cm_get_last_error_message());
+            cm_delete(machine);
+            return 1;
+        } else {
+            printf("REQUEST DATA:\n");
+            printf("%.*s\n", (int)length, (char*)request_data);
+        }
         printf("Yielded manually\n");
         break;
         case CM_BREAK_REASON_YIELDED_AUTOMATICALLY:
+        // const char response_data[] = "Hello from outside!";
+        // if (cm_send_cmio_response(machine, domain, (uint8_t*)response_data, sizeof(response_data)-1) != CM_ERROR_OK) {
+        //     printf("failed to send CMIO response: %s\n", cm_get_last_error_message());
+        //     cm_delete(machine);
+        //     return 1;
+        // }
         printf("Yielded automatically\n");
         break;
         case CM_BREAK_REASON_YIELDED_SOFTLY:
@@ -140,6 +163,8 @@ int main() {
         exit(1);
     }
     printf("Cycles: %lu\n", (unsigned long)mcycle);
+
+    
 
     // Cleanup and exit
     cm_delete(machine);

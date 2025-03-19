@@ -57,10 +57,11 @@
             }
         </style>
     </head>
-    <body>
+    <body style="background-color: aqua;">
         <div style="display: contents">
-            <div id="terminal"></div>
+            <div id="terminal" style="width: 50%; height: 50%;"></div>
         </div>
+
         <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
@@ -75,7 +76,6 @@
                 fontWeight: 400,
             });
             xterm.open(terminalElem);
-            // xterm.loadAddon(new WebglAddon.WebglAddon());
             xterm.loadAddon(new WebLinksAddon.WebLinksAddon());
             xterm.focus();
 
@@ -84,28 +84,50 @@
 
             // Configure terminal for raw mode
             let termios = slave.ioctl("TCGETS");
-            termios.iflag &= ~0x5eb; // ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON)
-            termios.cflag &= ~0x130; // ~(CSIZE | PARENB)
-            termios.lflag &= ~0x804b; // ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN)
-            termios.cflag |= 0x30; // CS8
-            termios.oflag |= 0x1; // OPOST
+            termios.iflag &= ~0x5eb;
+            termios.cflag &= ~0x130;
+            termios.lflag &= ~0x804b;
+            termios.cflag |= 0x30;
+            termios.oflag |= 0x1;
             slave.ioctl("TCSETS", termios);
 
             // Connect the master object to xterm.js
             xterm.loadAddon(master);
 
-            // Make the terminal's size and geometry fit the size of #terminal
+            // Make the terminal's size fit the container
             const fitAddon = new FitAddon.FitAddon();
             xterm.loadAddon(fitAddon);
             fitAddon.fit();
-            new ResizeObserver(function () {
-                fitAddon.fit();
-            }).observe(terminalElem);
+            new ResizeObserver(() => fitAddon.fit()).observe(terminalElem);
+
+            // Store master globally so we can write to it later
+            window.slave = xterm;
 
             // Download and initialize the emscripten module
             xterm.write("Downloading...\n\r");
             import initEmscripten from "./webcm.mjs";
-            await initEmscripten({ pty: slave });
+            let module = await initEmscripten({ pty: slave });
+            window.Module = module; // Store globally for easy access
+            console.log("WASM Module Loaded!");
+        </script>
+        <button onclick="sendInputToTerminal()">Click me</button>
+        <button onclick="callWasmFunction()">module call</button>
+
+        <script>
+            function sendInputToTerminal() {
+                if (window.slave) {
+                    window.slave.input("ls\n"); // Example: Send 'ls' command to terminal
+                }
+            }
+
+            function callWasmFunction() {
+                console.log("module call")
+                if (window.Module) {
+                    window.Module._my_wasm_function(); // Calls `my_wasm_function()`
+                } else {
+                    console.error("WASM not loaded yet!");
+                }
+            }
         </script>
     </body>
 </html>

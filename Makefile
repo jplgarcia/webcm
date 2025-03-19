@@ -10,13 +10,14 @@ EMCC_CFLAGS=-Oz -g0 -std=gnu23 \
 SKEL_FILES=$(shell find skel -type f)
 
 all: builder rootfs.tar # Compile everything inside a Docker environment
-	docker run --volume=.:/mnt --workdir=/mnt --user=$(shell id -u):$(shell id -g) --env=HOME=/tmp --rm -it webcm/builder make webcm.mjs
+	docker run --volume=.:/mnt --workdir=/mnt --user=$(shell id -u):$(shell id -g) --env=HOME=/tmp --rm -it webcm/builder make webcm.mjs 
 
 test: # Test
 	emrun index.html
 
 builder: builder.Dockerfile
-	docker build --tag webcm/builder --file $< --progress plain .
+	docker buildx build --platform linux/amd64 --progress plain --tag webcm/builder --file builder.Dockerfile .
+
 
 webcm.mjs: webcm.c rootfs.ext2.zz linux.bin.zz emscripten-pty.js
 	emcc webcm.c -o webcm.mjs $(EMCC_CFLAGS)
